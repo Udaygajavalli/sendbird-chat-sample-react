@@ -38,6 +38,21 @@ const BasicGroupChannelSample = (props) => {
 
     const channelRef = useRef();
 
+    const sendNotification = () => {
+        if (!("Notification" in window)) {
+          alert("This browser does not support desktop notification");
+        } else if (Notification.permission === "granted") {
+          const notification = new Notification(`Received a new message`);
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+              const notification = new Notification("Received a new message");
+            }
+          });
+        }
+    }
+      
+
     const channelHandlers = {
         onChannelsAdded: (context, channels) => {
             const updatedChannels = [...channels, ...stateRef.current.channels];
@@ -59,6 +74,10 @@ const BasicGroupChannelSample = (props) => {
                     return channel;
                 }
             });
+
+            if(context.source === "EVENT_MESSAGE_RECEIVED"){
+                sendNotification();
+            }
 
             updateState({ ...stateRef.current, channels: updatedChannels });
         },
@@ -371,7 +390,7 @@ const ChannelList = ({
                         <div
                             className="channel-list-item-name"
                             onClick={() => { handleJoinChannel(channel.url) }}>
-                            <ChannelName members={channel.members} />
+                            <ChannelName members={channel.members} customType = {channel.customType} />
                             <div className="last-message">{channel.lastMessage?.message}</div>
                         </div>
                         <div>
@@ -385,7 +404,13 @@ const ChannelList = ({
         </div >);
 }
 
-const ChannelName = ({ members }) => {
+const renderCustomType = (customType) => {
+    if (customType) {
+        return <span> ({customType})</span>
+    }
+}
+
+const ChannelName = ({ members, customType }) => {
     const membersToDisplay = members.slice(0, 2);
     const membersNotToDisplay = members.slice(2);
 
@@ -394,13 +419,14 @@ const ChannelName = ({ members }) => {
             return <span key={member.userId}>{member.nickname}</span>
         })}
         {membersNotToDisplay.length > 0 && `+ ${membersNotToDisplay.length}`}
+        {renderCustomType(customType)}
     </>
 }
 
 const Channel = ({ currentlyJoinedChannel, children, handleLeaveChannel, channelRef }) => {
     if (currentlyJoinedChannel) {
         return <div className="channel" ref={channelRef}>
-            <ChannelHeader>{currentlyJoinedChannel.name}</ChannelHeader>
+            <ChannelHeader customType={currentlyJoinedChannel.customType}>{currentlyJoinedChannel.name}</ChannelHeader>
             <div>
                 <button className="leave-channel" onClick={handleLeaveChannel}>Leave Channel</button>
             </div>
@@ -410,8 +436,8 @@ const Channel = ({ currentlyJoinedChannel, children, handleLeaveChannel, channel
     return <div className="channel"></div>;
 }
 
-const ChannelHeader = ({ children }) => {
-    return <div className="channel-header">{children}</div>;
+const ChannelHeader = ({ customType, children }) => {
+    return <div className="channel-header">{children} {renderCustomType(customType)} </div>;
 }
 
 const MembersList = ({ channel, handleMemberInvite }) => {
@@ -586,6 +612,8 @@ const CreateUserForm = ({
 const loadChannels = async (channelHandlers) => {
     const groupChannelFilter = new GroupChannelFilter();
     groupChannelFilter.includeEmpty = true;
+    groupChannelFilter.customTypesFilter = "Uday";
+
 
     const collection = sb.groupChannel.createGroupChannelCollection({
         filter: groupChannelFilter,
@@ -625,6 +653,7 @@ const createChannel = async (channelName, userIdsToInvite) => {
         groupChannelParams.invitedUserIds = userIdsToInvite;
         groupChannelParams.name = channelName;
         groupChannelParams.operatorUserIds = userIdsToInvite;
+        groupChannelParams.customType = "Uday";
         const groupChannel = await sb.groupChannel.createChannel(groupChannelParams);
         return [groupChannel, null];
     } catch (error) {
